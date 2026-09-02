@@ -37,7 +37,7 @@ export function InfoButton() {
 			{open && (
 				<div
 					ref={popRef}
-					className="fixed left-4 top-12 z-[2000] w-72 rounded-lg border border-border bg-background p-4 shadow-lg text-xs space-y-2"
+					className="info-popover fixed left-4 top-12 z-[2000] w-72 rounded-lg p-4 text-xs space-y-2"
 				>
 					<div className="font-semibold text-sm">About this map</div>
 					<p>

@@ -36,6 +36,7 @@ button { color: inherit; }
 .header-actions { display: flex; gap: 6px; }
 .icon-button { width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 1px solid #d8d6cb; border-radius: 9px; background: transparent; cursor: pointer; }
 .icon-button:hover { background: #eeece4; }
+.info-popover { color: #17332d; background: #fbfaf5; border: 1px solid #d8d6cb; box-shadow: 0 12px 36px #122d2633; }
 
 .search-input { position: relative; }
 .search-input > input, .sidebar input[type="text"] {
