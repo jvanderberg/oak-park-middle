@@ -134,10 +134,12 @@ export function PropertyMarkers({
 				const property = byPin.get(pin);
 				if (!property || renderedPins.has(pin) || !feature.geometry) continue;
 				const color = unitColor(property.units);
-				L.geoJSON(feature, {
+				const options = {
 					style: { color, fillColor: color, fillOpacity: 0.62, weight: 1.5 },
 					pane: 'properties',
-				})
+					renderer,
+				} as L.GeoJSONOptions;
+				L.geoJSON(feature, options)
 					.bindPopup(() => popup(property))
 					.addTo(layer);
 				renderedPins.add(pin);
