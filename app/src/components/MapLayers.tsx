@@ -73,7 +73,11 @@ function popup(property: Property): HTMLElement {
 			<span>Built ${property.yearBuilt || 'unknown'}</span>
 			<span>${squareFeet}</span>
 		</div>
-		<a href="${property.url}" target="_blank" rel="noopener noreferrer">View Assessor record ↗</a>
+		<a class="assessor-link" href="${property.url}" target="_blank" rel="noopener noreferrer">
+			<span>Cook County Assessor</span>
+			<strong>View property record ↗</strong>
+		</a>
+		<a class="pin-link" href="${property.url}" target="_blank" rel="noopener noreferrer">PIN ${property.pin}</a>
 	`;
 	return container;
 }

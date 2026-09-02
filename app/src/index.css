@@ -87,7 +87,11 @@ button { color: inherit; }
 .property-popup .popup-kicker { margin-bottom: 4px; color: #2f7d67; font-size: 10px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
 .property-popup > strong { display: block; font-size: 14px; }
 .popup-facts { display: flex; flex-direction: column; gap: 2px; margin: 8px 0; color: #68706c; font-size: 11px; }
-.property-popup a { color: #236651; font-size: 11px; font-weight: 650; text-decoration: none; }
+.property-popup .assessor-link { display: flex; flex-direction: column; gap: 1px; margin-top: 10px; padding: 9px 11px; border-radius: 9px; color: #fff; background: #173f35; text-decoration: none; }
+.property-popup .assessor-link:hover { background: #23594b; }
+.property-popup .assessor-link span { color: #c8ddd6; font-size: 9px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
+.property-popup .assessor-link strong { font-size: 11px; }
+.property-popup .pin-link { display: block; margin-top: 7px; color: #5f6965; font-family: ui-monospace, monospace; font-size: 9px; text-align: center; text-decoration: underline; }
 
 @media (max-width: 767px) {
 	.sidebar { position: fixed; inset: 0 auto 0 0; width: min(88vw, 360px); padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom)); flex-basis: auto; box-shadow: 8px 0 30px #122d2644; }
