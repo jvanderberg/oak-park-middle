@@ -1,26 +1,9 @@
-/**
- * Leaflet map layer components.
- *
- * These are renderless React components that imperatively manage Leaflet layers.
- * They use useMap() from react-leaflet to access the map instance, and manage
- * layer lifecycle via useEffect + refs.
- *
- * Custom pane z-index ordering (higher = on top):
- *   - 'highlight' (470, pointer-events: none) — search bullseye marker
- *   - 'markers'   (460) — property circle markers (canvas-rendered)
- *   - 'districts' (450) — historic district polygons
- *   - default overlayPane (400) — village boundary
- */
-
 import type { FeatureCollection } from 'geojson';
 import L from 'leaflet';
 import { useEffect, useRef, useState } from 'react';
 import { useMap } from 'react-leaflet';
-import { classColor, DISTRICT_COLORS, zoningColor } from '../constants';
+import { unitColor } from '../constants';
 import type { Property } from '../types';
-
-// ── MapBounds ────────────────────────────────────────────────────────
-// Fits the map viewport to the bounding box of all properties on first load.
 
 export function MapBounds({
 	properties,
@@ -31,23 +14,18 @@ export function MapBounds({
 }) {
 	const map = useMap();
 	const didFit = useRef(false);
-
 	useEffect(() => {
-		if (skip || didFit.current || properties.length === 0) return;
+		if (skip || didFit.current || !properties.length) return;
 		didFit.current = true;
-		const lats = properties.map((p) => p.lat);
-		const lons = properties.map((p) => p.lon);
-		map.fitBounds([
-			[Math.min(...lats), Math.min(...lons)],
-			[Math.max(...lats), Math.max(...lons)],
-		]);
+		map.fitBounds(
+			properties.map((property) => [property.lat, property.lon]),
+			{
+				padding: [24, 24],
+			},
+		);
 	}, [properties, map, skip]);
-
 	return null;
 }
-
-// ── MapPositionSync ──────────────────────────────────────────────────
-// Calls onMove whenever the map is panned or zoomed.
 
 export function MapPositionSync({
 	onMove,
@@ -55,185 +33,56 @@ export function MapPositionSync({
 	onMove: (lat: number, lng: number, zoom: number) => void;
 }) {
 	const map = useMap();
-
 	useEffect(() => {
-		function handler() {
+		const handler = () => {
 			const { lat, lng } = map.getCenter();
 			onMove(lat, lng, map.getZoom());
-		}
+		};
 		map.on('moveend', handler);
 		return () => {
 			map.off('moveend', handler);
 		};
 	}, [map, onMove]);
-
 	return null;
 }
-
-// ── BoundaryLayer ────────────────────────────────────────────────────
-// Renders the Oak Park village boundary as a dashed outline.
 
 export function BoundaryLayer({ boundary }: { boundary: FeatureCollection }) {
 	const map = useMap();
-	const layerRef = useRef<L.GeoJSON | null>(null);
-
 	useEffect(() => {
-		if (layerRef.current) {
-			map.removeLayer(layerRef.current);
-		}
-		layerRef.current = L.geoJSON(boundary, {
-			style: { color: '#444', weight: 3, fillOpacity: 0, dashArray: '6 4' },
+		const layer = L.geoJSON(boundary, {
+			style: { color: '#173f35', weight: 2, fillOpacity: 0, dashArray: '7 6' },
 			interactive: false,
 		}).addTo(map);
-
 		return () => {
-			if (layerRef.current) map.removeLayer(layerRef.current);
+			map.removeLayer(layer);
 		};
 	}, [boundary, map]);
-
 	return null;
 }
 
-// ── DistrictLayers ───────────────────────────────────────────────────
-// Renders historic district polygons with fill/stroke colors.
-// Only shows districts present in the `enabled` set.
-
-export function DistrictLayers({
-	districts,
-	enabled,
-}: {
-	districts: FeatureCollection;
-	enabled: Set<string>;
-}) {
-	const map = useMap();
-	const layerRef = useRef<L.LayerGroup | null>(null);
-
-	useEffect(() => {
-		if (!map.getPane('districts')) {
-			const pane = map.createPane('districts');
-			pane.style.zIndex = '450';
-		}
-
-		if (!layerRef.current) {
-			layerRef.current = L.layerGroup().addTo(map);
-		}
-		const group = layerRef.current;
-		group.clearLayers();
-
-		for (const feature of districts.features) {
-			const name = feature.properties?.NAME?.trim();
-			if (!name || !enabled.has(name)) continue;
-			const color = DISTRICT_COLORS[name] || '#888';
-			L.geoJSON(feature, {
-				style: { color, weight: 6, fillOpacity: 0.1 },
-				pane: 'districts',
-				onEachFeature: (_f, layer) => {
-					layer.bindTooltip(name);
-				},
-			}).addTo(group);
-		}
-
-		return () => {
-			group.clearLayers();
-		};
-	}, [districts, enabled, map]);
-
-	return null;
+function popup(property: Property): HTMLElement {
+	const container = document.createElement('div');
+	container.className = 'property-popup';
+	const squareFeet = property.buildingSqft
+		? `${property.buildingSqft.toLocaleString()} building sq ft`
+		: 'Building size unavailable';
+	container.innerHTML = `
+		<div class="popup-kicker">${property.units}-unit property</div>
+		<strong>${property.address || 'Address unavailable'}</strong>
+		<div class="popup-facts">
+			<span>Built ${property.yearBuilt || 'unknown'}</span>
+			<span>${squareFeet}</span>
+		</div>
+		<a href="${property.url}" target="_blank" rel="noopener noreferrer">View Assessor record ↗</a>
+	`;
+	return container;
 }
 
-// ── ZoningLayer ──────────────────────────────────────────────────────
-// Renders Oak Park zoning district polygons as semi-transparent fills.
-
-export function ZoningLayer({
-	zoning,
-	enabled,
-}: {
-	zoning: FeatureCollection;
-	enabled: Set<string>;
-}) {
-	const map = useMap();
-	const layerRef = useRef<L.LayerGroup | null>(null);
-
-	useEffect(() => {
-		if (!map.getPane('zoning')) {
-			const pane = map.createPane('zoning');
-			pane.style.zIndex = '440';
-		}
-
-		if (!layerRef.current) {
-			layerRef.current = L.layerGroup().addTo(map);
-		}
-		const group = layerRef.current;
-		group.clearLayers();
-
-		for (const feature of zoning.features) {
-			const zoned: string = feature.properties?.ZONED ?? '';
-			if (!enabled.has(zoned)) continue;
-			const color = zoningColor(zoned);
-			const desc: string = feature.properties?.ZONINGDESCRIPTION ?? '';
-			L.geoJSON(feature, {
-				style: { color, weight: 1, fillColor: color, fillOpacity: 0.7 },
-				pane: 'zoning',
-				onEachFeature: (_f, layer) => {
-					layer.bindTooltip(`${zoned} — ${desc}`);
-				},
-			}).addTo(group);
-		}
-
-		return () => {
-			group.clearLayers();
-		};
-	}, [zoning, enabled, map]);
-
-	return null;
-}
-
-// ── PropertyMarkers ──────────────────────────────────────────────────
-// Renders property parcels as filled polygons where geometry is available,
-// falling back to circle markers for properties without parcel shapes.
-// Parcels GeoJSON features have properties: { name (PIN), pin, class, ... }
-
-function buildPopup(p: Property): HTMLElement {
-	const div = document.createElement('div');
-	div.style.fontSize = '12px';
-	div.innerHTML = [
-		`<strong>${p.address || 'No address'}</strong>`,
-		`PIN: <a href="${p.url}" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:underline">${p.pin}</a>`,
-		`Class: ${p.class} — ${p.description}`,
-		p.district ? `District: ${p.district}` : '',
-	]
-		.filter(Boolean)
-		.join('<br>');
-	return div;
-}
-
-// Build a popup listing multiple units sharing a parcel
-function buildMultiPopup(units: Property[]): HTMLElement {
-	const div = document.createElement('div');
-	div.style.fontSize = '12px';
-	div.style.maxHeight = '200px';
-	div.style.overflowY = 'auto';
-	const first = units[0];
-	const lines = [
-		`<strong>${first.address || 'No address'}</strong>`,
-		`${units.length} units at this parcel:`,
-		'<hr style="margin:4px 0">',
-	];
-	for (const p of units) {
-		lines.push(
-			`<a href="${p.url}" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:underline">${p.pin}</a> — ${p.class} ${p.description}`,
-		);
-	}
-	if (first.district) lines.push(`<br>District: ${first.district}`);
-	div.innerHTML = lines.join('<br>');
-	return div;
-}
-
-function zoomToRadius(zoom: number): number {
-	if (zoom <= 15) return 1;
-	if (zoom <= 16) return 2;
-	if (zoom <= 17) return 4;
-	return 6;
+function markerRadius(zoom: number): number {
+	if (zoom <= 15) return 3;
+	if (zoom <= 16) return 4;
+	if (zoom <= 17) return 5;
+	return 7;
 }
 
 export function PropertyMarkers({
@@ -248,104 +97,62 @@ export function PropertyMarkers({
 	const map = useMap();
 	const layerRef = useRef<L.LayerGroup | null>(null);
 	const rendererRef = useRef<L.Canvas | null>(null);
-	const [radius, setRadius] = useState(() => zoomToRadius(map.getZoom()));
+	const [radius, setRadius] = useState(() => markerRadius(map.getZoom()));
 
 	useEffect(() => {
-		function onZoomEnd() {
-			setRadius(zoomToRadius(map.getZoom()));
-		}
-		map.on('zoomend', onZoomEnd);
+		const onZoom = () => setRadius(markerRadius(map.getZoom()));
+		map.on('zoomend', onZoom);
 		return () => {
-			map.off('zoomend', onZoomEnd);
+			map.off('zoomend', onZoom);
 		};
 	}, [map]);
 
 	useEffect(() => {
-		if (!map.getPane('markers')) {
-			const pane = map.createPane('markers');
+		if (!map.getPane('properties')) {
+			const pane = map.createPane('properties');
 			pane.style.zIndex = '460';
 		}
-		if (!rendererRef.current) {
-			rendererRef.current = L.canvas({ padding: 0.5, pane: 'markers' });
-		}
-		if (!layerRef.current) {
-			layerRef.current = L.layerGroup().addTo(map);
-		}
+		if (!rendererRef.current)
+			rendererRef.current = L.canvas({ padding: 0.5, pane: 'properties' });
+		if (!layerRef.current) layerRef.current = L.layerGroup().addTo(map);
 
 		const layer = layerRef.current;
 		const renderer = rendererRef.current;
 		layer.clearLayers();
-
-		const displayedPins = new Set(properties.map((p) => p.pin));
-		const propsByPin = new Map(properties.map((p) => [p.pin, p]));
-
-		// Group parcel features by geometry identity (condo units share a parent shape).
-		// Use first coordinate as a cheap fingerprint to deduplicate.
+		const byPin = new Map(
+			properties.map((property) => [property.pin, property]),
+		);
 		const renderedPins = new Set<string>();
+
 		if (showBoundaries && parcels) {
-			const geomGroups = new Map<
-				string,
-				{ coords: [number, number][][]; pins: string[] }
-			>();
 			for (const feature of parcels.features) {
 				const pin = feature.properties?.pin ?? feature.properties?.name;
-				if (!pin || !displayedPins.has(pin)) continue;
-
-				const geom = feature.geometry as { coordinates: number[][][] } | null;
-				if (!geom?.coordinates) continue;
-
-				const fp = JSON.stringify(geom.coordinates[0]?.[0]);
-				const existing = geomGroups.get(fp);
-				if (existing) {
-					existing.pins.push(pin);
-				} else {
-					// Convert GeoJSON [lon,lat] to Leaflet [lat,lon]
-					const rings = geom.coordinates.map((ring) =>
-						ring.map(([lon, lat]) => [lat, lon] as [number, number]),
-					);
-					geomGroups.set(fp, { coords: rings, pins: [pin] });
-				}
-			}
-
-			// Render one L.polygon per unique parcel shape on the shared canvas
-			for (const { coords, pins } of geomGroups.values()) {
-				const units = pins
-					.map((pin) => propsByPin.get(pin))
-					.filter((p): p is Property => p !== undefined);
-				if (units.length === 0) continue;
-
-				const color = classColor(units[0].class);
-				L.polygon(coords, {
-					color,
-					fillColor: color,
-					fillOpacity: 0.35,
-					weight: 1,
-					renderer,
-					pane: 'markers',
+				const property = byPin.get(pin);
+				if (!property || renderedPins.has(pin) || !feature.geometry) continue;
+				const color = unitColor(property.units);
+				L.geoJSON(feature, {
+					style: { color, fillColor: color, fillOpacity: 0.62, weight: 1.5 },
+					pane: 'properties',
 				})
-					.bindPopup(() =>
-						units.length === 1 ? buildPopup(units[0]) : buildMultiPopup(units),
-					)
+					.bindPopup(() => popup(property))
 					.addTo(layer);
-
-				for (const pin of pins) renderedPins.add(pin);
+				renderedPins.add(pin);
 			}
 		}
 
-		// Fall back to circle markers for properties without parcel geometry
-		for (const p of properties) {
-			if (renderedPins.has(p.pin)) continue;
-			const color = classColor(p.class);
-			L.circleMarker([p.lat, p.lon], {
+		for (const property of properties) {
+			if (renderedPins.has(property.pin)) continue;
+			const color = unitColor(property.units);
+			L.circleMarker([property.lat, property.lon], {
 				radius,
-				color,
+				color: '#fff',
 				fillColor: color,
-				fillOpacity: 0.7,
-				weight: 1,
+				fillOpacity: 0.92,
+				weight: 1.5,
 				renderer,
-				pane: 'markers',
+				pane: 'properties',
 			})
-				.bindPopup(() => buildPopup(p))
+				.bindPopup(() => popup(property))
 				.addTo(layer);
 		}
 
@@ -353,66 +160,27 @@ export function PropertyMarkers({
 			layer.clearLayers();
 		};
 	}, [properties, parcels, showBoundaries, map, radius]);
-
 	return null;
 }
 
-// ── HighlightMarker ──────────────────────────────────────────────────
-// Shows a red bullseye on the searched/selected property and zooms to it.
-// Uses a non-interactive pane so it doesn't block clicks on underlying markers.
-
 export function HighlightMarker({ property }: { property: Property | null }) {
 	const map = useMap();
-	const markerRef = useRef<L.CircleMarker | null>(null);
-	const ringRef = useRef<L.CircleMarker | null>(null);
-
 	useEffect(() => {
-		if (markerRef.current) {
-			map.removeLayer(markerRef.current);
-			markerRef.current = null;
-		}
-		if (ringRef.current) {
-			map.removeLayer(ringRef.current);
-			ringRef.current = null;
-		}
 		if (!property) return;
-
-		if (!map.getPane('highlight')) {
-			const pane = map.createPane('highlight');
-			pane.style.zIndex = '470';
-			pane.style.pointerEvents = 'none';
-		}
-
-		const latlng: [number, number] = [property.lat, property.lon];
-		const maxZoom = map.getMaxZoom() || 18;
-		map.setView(latlng, maxZoom - 1);
-
-		// Outer ring
-		ringRef.current = L.circleMarker(latlng, {
-			radius: 14,
-			color: '#ef4444',
-			weight: 2,
-			fillOpacity: 0,
-			interactive: false,
-			pane: 'highlight',
-		}).addTo(map);
-
-		// Inner dot
-		markerRef.current = L.circleMarker(latlng, {
-			radius: 5,
-			color: '#ef4444',
-			fillColor: '#ef4444',
+		map.setView([property.lat, property.lon], 18);
+		const marker = L.circleMarker([property.lat, property.lon], {
+			radius: 13,
+			color: '#e9a33d',
+			fillColor: unitColor(property.units),
 			fillOpacity: 1,
-			weight: 2,
-			interactive: false,
-			pane: 'highlight',
-		}).addTo(map);
-
+			weight: 4,
+		})
+			.bindPopup(() => popup(property))
+			.addTo(map)
+			.openPopup();
 		return () => {
-			if (markerRef.current) map.removeLayer(markerRef.current);
-			if (ringRef.current) map.removeLayer(ringRef.current);
+			map.removeLayer(marker);
 		};
 	}, [property, map]);
-
 	return null;
 }

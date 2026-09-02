@@ -14,10 +14,10 @@ const args = process.argv.slice(2);
 
 const steps = [
   { label: 'Ingest Oak Park data from Socrata', cmd: ['node', 'ingest-op.cjs', ...args] },
-  { label: 'Extract properties + districts JSON', cmd: ['node', 'extract-all-op-properties.cjs', ...args] },
+  { label: 'Extract middle housing + map geometry', cmd: ['node', 'extract-all-op-properties.cjs', ...args] },
 ];
 
-console.log('Oak Park Properties — Full Build');
+console.log('Oak Park Middle — Full Build');
 console.log('================================\n');
 
 const start = Date.now();

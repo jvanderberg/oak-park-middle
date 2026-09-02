@@ -1,52 +1,41 @@
-# Oak Park Properties
+# Oak Park Middle
 
-**[Live Map](https://jvanderberg.github.io/oak-park-properties/)**
+An interactive map for finding Oak Park's two- to six-unit “middle housing” by
+exact unit count and year built.
 
-Interactive map of all ~17,400 properties in Oak Park, IL. Shows parcel boundaries or density dots colored by property class, with zoning overlays, historic district boundaries, and full filter state persisted in the URL. Built with React, Leaflet, and shadcn/ui.
-
-## Quick Start
+## Quick start
 
 ```bash
 npm install
-npm run pipeline   # fetch data from Socrata + ArcGIS, write app/public/ (~2-3 min)
-npm run dev        # start dev server
+npm run pipeline   # fetch and prepare current Cook County data
+npm run dev
 ```
 
-## Data Pipeline
+The production build is configured for GitHub Pages at
+`https://jvanderberg.github.io/oak-park-middle/`.
 
-The pipeline has two steps. `npm run pipeline` runs both.
+## Data
 
-**Ingest** (`ingest-op.cjs`) fetches Oak Park property data from the Cook County Assessor's Socrata API into a local SQLite database: assessed values, parcel addresses, address coordinates, and property characteristics.
+The pipeline combines these public sources:
 
-**Extract** (`extract-all-op-properties.cjs`) reads that database and produces the static files in `app/public/`:
+- Cook County Assessor assessed values, parcel addresses, address points, and
+  single/multi-family improvement characteristics
+- Cook County GIS parcel geometry
+- Village of Oak Park boundary geometry
 
-- `properties.json` — all properties with coordinates, class, address, and pre-computed zone/district membership
-- `parcels.geojson` — parcel polygon geometries from the Cook County ArcGIS parcel layer, fetched in batches of 500
-- `districts.geojson` — historic district boundaries from the Village of Oak Park ArcGIS portal
-- `zoning.geojson` — zoning district polygons from the Village of Oak Park ArcGIS portal
-- `boundary.geojson` — village boundary dissolved from census tract polygons
+Middle housing records are limited to property classes 211 and 212 with a
+reported apartment count between two and six. For parcels with multiple
+building cards, apartment counts and building area are summed; the earliest
+reported construction year is used.
 
-Coordinates are resolved in three passes: direct PIN lookup, parent PIN for condo units, then address matching. About 7% of properties (vacant land, garages, exempt parcels) remain unresolved and are excluded.
-
-Zone and historic district membership are computed during extract using Turf.js point-in-polygon and stored in `properties.json`, so the browser does no geometry work at runtime.
-
-## App
-
-Parcel boundaries and circle markers are canvas-rendered for performance across 17k+ features. All filter state round-trips through the URL — map position, zoom, panel open/closed states, zone and class selections (bitmap-encoded), and display mode — so any view can be bookmarked or shared.
-
-## Scripts
-
-```
-npm run pipeline      Full data pipeline: ingest + extract
-npm run ingest        Ingest only (Socrata → SQLite)
-npm run extract       Extract only (SQLite → app/public/)
-npm run dev           Vite dev server
-npm run build         Production build
-npm run check         TypeScript + Biome lint/format check
-npm run check:fix     Auto-fix lint/format issues
-```
+## Commands
 
 ```bash
-npm run pipeline -- --year 2024                # assessment year (default: 2024)
-node extract-all-op-properties.cjs -o <path>   # custom output directory
+npm run dev          Start Vite
+npm run build        Type-check and build
+npm run check        TypeScript and Biome checks
+npm run check:fix    Format and fix lint
+npm run pipeline     Rebuild all static data
+npm run ingest       Refresh the local SQLite source database
+npm run extract      Regenerate map JSON from the database
 ```

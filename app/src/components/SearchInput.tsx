@@ -49,10 +49,10 @@ export function SearchInput({ properties, onHighlight }: SearchInputProps) {
 	}, [searchResults, onHighlight]);
 
 	return (
-		<div className="relative" ref={searchRef}>
+		<div className="search-input relative" ref={searchRef}>
 			<input
 				type="text"
-				placeholder="Search address or PIN..."
+				placeholder="Search an address or PIN"
 				value={searchText}
 				onFocus={() => setSearchOpen(true)}
 				onChange={(e) => {

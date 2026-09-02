@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-	base: '/oak-park-properties/',
+	base: '/oak-park-middle/',
 	plugins: [react(), tailwindcss()],
 	publicDir: 'app/public',
 	resolve: {

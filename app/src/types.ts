@@ -5,13 +5,8 @@ export interface Property {
 	lon: number;
 	class: string;
 	description: string;
-	district: string | null;
-	zone: string | null;
+	units: number;
+	yearBuilt: number | null;
+	buildingSqft: number | null;
 	url: string;
-}
-
-export interface ClassInfo {
-	class: string;
-	description: string;
-	count: number;
 }

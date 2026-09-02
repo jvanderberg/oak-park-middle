@@ -39,7 +39,12 @@ export function InfoButton() {
 					ref={popRef}
 					className="fixed left-4 top-12 z-[2000] w-72 rounded-lg border border-border bg-background p-4 shadow-lg text-xs space-y-2"
 				>
-					<div className="font-semibold text-sm">Data Sources</div>
+					<div className="font-semibold text-sm">About this map</div>
+					<p>
+						Middle housing here means verified two- to six-unit properties. Unit
+						count and year built are reported property characteristics, not
+						estimates.
+					</p>
 					<p>
 						Property records from the{' '}
 						<a
@@ -53,6 +58,17 @@ export function InfoButton() {
 						via the Socrata Open Data Portal:
 					</p>
 					<ul className="list-disc ml-4 space-y-1">
+						<li>
+							<a
+								href="https://datacatalog.cookcountyil.gov/d/x54s-btds"
+								target="_blank"
+								rel="noreferrer"
+								className="underline"
+							>
+								Property Characteristics
+							</a>{' '}
+							— apartment count, year built, building size
+						</li>
 						<li>
 							<a
 								href="https://datacatalog.cookcountyil.gov/d/uzyt-m557"
@@ -99,21 +115,9 @@ export function InfoButton() {
 						</a>
 						.
 					</p>
-					<p>
-						Historic district boundaries from the{' '}
-						<a
-							href="https://oak-park-open-data-portal-v2-oakparkil.hub.arcgis.com/datasets/d3ff666dfb764e8183879667acce810e_13/explore"
-							target="_blank"
-							rel="noreferrer"
-							className="underline text-primary"
-						>
-							Village of Oak Park ArcGIS Portal (Historic Districts, Layer 13)
-						</a>
-						.
-					</p>
 					<p className="text-muted-foreground">
-						~7% of properties lack coordinates (vacant land, garages, exempt
-						parcels) and are not shown on the map.
+						Records with missing coordinates or unreported apartment counts are
+						not shown. Always verify details with the Assessor.
 					</p>
 				</div>
 			)}

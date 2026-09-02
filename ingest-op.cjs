@@ -143,9 +143,12 @@ function createSchema(db) {
     CREATE INDEX IF NOT EXISTS idx_ap_city ON address_points(city);
 
     CREATE TABLE IF NOT EXISTS property_characteristics (
+      row_id         TEXT PRIMARY KEY,
       pin            TEXT NOT NULL,
       year           INTEGER NOT NULL,
+      card           INTEGER,
       char_yrblt     INTEGER,
+      char_apts      TEXT,
       char_bldg_sf   INTEGER,
       char_land_sf   INTEGER,
       char_beds      INTEGER,
@@ -158,8 +161,7 @@ function createSchema(db) {
       char_bsmt      TEXT,
       char_heat      TEXT,
       char_air       TEXT,
-      char_use       TEXT,
-      PRIMARY KEY (pin, year)
+      char_use       TEXT
     );
 
     CREATE TABLE IF NOT EXISTS property_classes (
@@ -219,9 +221,12 @@ function transformAddressPoint(raw) {
 
 function transformCharacteristic(raw) {
   return {
+    row_id: toText(raw.row_id) || `${raw.pin}-${raw.year}-${raw.card || 1}`,
     pin: toText(raw.pin),
     year: toInt(raw.year),
+    card: toInt(raw.card),
     char_yrblt: toInt(raw.char_yrblt),
+    char_apts: toText(raw.char_apts),
     char_bldg_sf: toInt(raw.char_bldg_sf),
     char_land_sf: toInt(raw.char_land_sf),
     char_beds: toInt(raw.char_beds),

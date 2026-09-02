@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Extract all Oak Park properties with lat/lon, historic district, class, and description.
+ * Extract Oak Park two- to six-unit properties and their building characteristics.
  *
  * Coordinate resolution strategy:
  *   1. Direct match from address_points table
@@ -9,7 +9,8 @@
  *
  * Outputs:
  *   - properties.json: array of property objects (only those with coordinates)
- *   - districts.geojson: historic district boundaries
+ *   - boundary.geojson: Oak Park village outline
+ *   - parcels.geojson: parcel boundaries for matching properties
  *
  * Usage:
  *   node extract-all-op-properties.js
@@ -21,18 +22,10 @@
 const Database = require('better-sqlite3');
 const fs = require('fs');
 const path = require('path');
-const booleanPointInPolygon = require('@turf/boolean-point-in-polygon').default;
-const { point } = require('@turf/helpers');
 const turfUnion = require('@turf/union').default;
 
 const ARCGIS_PARCELS_URL =
   'https://gis.cookcountyil.gov/hosting/rest/services/Hosted/Parcel_2022/FeatureServer/0/query';
-
-const ARCGIS_HISTORIC_DISTRICTS_URL =
-  'https://utility.arcgis.com/usrsvcs/servers/4cff1aaefa364b57b8c70d5c606f2088/rest/services/VOP/AGOL_VOP_Project/MapServer/13/query';
-
-const ARCGIS_ZONING_URL =
-  'https://utility.arcgis.com/usrsvcs/servers/4cff1aaefa364b57b8c70d5c606f2088/rest/services/VOP/AGOL_VOP_Project/MapServer/8/query';
 
 const ARCGIS_CENSUS_TRACTS_URL =
   'https://utility.arcgis.com/usrsvcs/servers/4cff1aaefa364b57b8c70d5c606f2088/rest/services/VOP/AGOL_VOP_Project/MapServer/159/query';
@@ -111,44 +104,6 @@ function buildCoordResolvers(db) {
   };
 }
 
-// ─── Historic districts ─────────────────────────────────────────────
-
-async function fetchHistoricDistricts() {
-  const params = new URLSearchParams({
-    where: '1=1',
-    outFields: 'NAME',
-    f: 'geojson',
-    returnGeometry: 'true',
-  });
-
-  console.log('Fetching historic district polygons...');
-  const resp = await fetch(`${ARCGIS_HISTORIC_DISTRICTS_URL}?${params}`);
-  if (!resp.ok) throw new Error(`ArcGIS fetch failed: ${resp.status}`);
-
-  const geojson = await resp.json();
-  console.log(`  Found ${geojson.features.length} districts: ${geojson.features.map(f => f.properties.NAME.trim()).join(', ')}`);
-  return geojson;
-}
-
-async function fetchZoning() {
-  const params = new URLSearchParams({
-    where: '1=1',
-    outFields: 'ZONED,ZONINGDESCRIPTION,ZONINGCATEGORY',
-    f: 'geojson',
-    returnGeometry: 'true',
-    resultRecordCount: '2000',
-  });
-
-  console.log('Fetching zoning district polygons...');
-  const resp = await fetch(`${ARCGIS_ZONING_URL}?${params}`);
-  if (!resp.ok) throw new Error(`ArcGIS zoning fetch failed: ${resp.status}`);
-
-  const geojson = await resp.json();
-  const zones = [...new Set(geojson.features.map(f => f.properties.ZONED))].sort();
-  console.log(`  Found ${geojson.features.length} zoning polygons, ${zones.length} zones: ${zones.join(', ')}`);
-  return geojson;
-}
-
 async function fetchVillageBoundary() {
   const params = new URLSearchParams({
     where: '1=1',
@@ -171,24 +126,6 @@ async function fetchVillageBoundary() {
     type: 'FeatureCollection',
     features: [{ ...merged, properties: { NAME: 'Oak Park' } }],
   };
-}
-
-function classifyDistrict(lon, lat, features) {
-  if (!lon || !lat) return '';
-  const pt = point([lon, lat]);
-  for (const f of features) {
-    if (booleanPointInPolygon(pt, f)) return f.properties.NAME.trim();
-  }
-  return '';
-}
-
-function classifyZone(lon, lat, features) {
-  if (!lon || !lat) return '';
-  const pt = point([lon, lat]);
-  for (const f of features) {
-    if (booleanPointInPolygon(pt, f)) return f.properties.ZONED ?? '';
-  }
-  return '';
 }
 
 // ─── Parcel geometries ──────────────────────────────────────────────
@@ -247,16 +184,47 @@ async function main() {
 
   const db = new Database(opts.db, { readonly: true });
 
-  // Get all OP properties
+  // Middle housing is represented by classes 211 and 212. The Assessor's
+  // apartment count is building-level, so cards are aggregated by PIN below.
   const rows = db.prepare(`
     SELECT av.pin, av.class, pa.prop_address_full
     FROM assessed_values av
-    LEFT JOIN parcel_addresses pa ON av.pin = pa.pin
+    LEFT JOIN parcel_addresses pa ON av.pin = pa.pin AND av.year = pa.year
     WHERE av.township_name = 'Oak Park' AND av.year = ?
+      AND av.class IN ('211', '212')
     ORDER BY pa.prop_address_full
   `).all(opts.year);
 
-  console.log(`Found ${rows.length} Oak Park properties (year ${opts.year})`);
+  console.log(`Found ${rows.length} potential middle-housing properties (year ${opts.year})`);
+
+  const apartmentWords = {
+    one: 1, two: 2, three: 3, four: 4, five: 5, six: 6,
+  };
+  const parseApartments = value => {
+    if (value == null) return 0;
+    const normalized = String(value).trim().toLowerCase();
+    return apartmentWords[normalized] || Number.parseInt(normalized, 10) || 0;
+  };
+
+  const characteristicsByPin = new Map();
+  const characteristicRows = db.prepare(`
+    SELECT pc.pin, pc.char_apts, pc.char_yrblt, pc.char_bldg_sf
+    FROM property_characteristics pc
+    JOIN assessed_values av ON av.pin = pc.pin AND av.year = pc.year
+    WHERE av.township_name = 'Oak Park' AND av.year = ?
+      AND av.class IN ('211', '212')
+  `).all(opts.year);
+  for (const characteristic of characteristicRows) {
+    const current = characteristicsByPin.get(characteristic.pin) || {
+      units: 0,
+      years: [],
+      buildingSqft: 0,
+    };
+    current.units += parseApartments(characteristic.char_apts);
+    if (characteristic.char_yrblt > 0) current.years.push(characteristic.char_yrblt);
+    if (characteristic.char_bldg_sf > 0) current.buildingSqft += characteristic.char_bldg_sf;
+    characteristicsByPin.set(characteristic.pin, current);
+  }
 
   // Get class descriptions
   const classDescs = {};
@@ -270,25 +238,20 @@ async function main() {
   console.log('Building coordinate resolvers...');
   const resolveCoords = buildCoordResolvers(db);
 
-  // Fetch districts, zoning, and village boundary
-  const districtsGeojson = await fetchHistoricDistricts();
-  const zoningGeojson = await fetchZoning();
+  // Fetch the village outline; no historic-district or zoning overlays are used.
   const boundaryGeojson = await fetchVillageBoundary();
 
   // Process all properties
   console.log('\nProcessing...');
   const methodCounts = { direct: 0, parent_pin: 0, address: 0, none: 0 };
-  const districtCounts = {};
   const properties = [];
 
   for (const row of rows) {
+    const characteristics = characteristicsByPin.get(row.pin);
+    if (!characteristics || characteristics.units < 2 || characteristics.units > 6) continue;
+
     const coords = resolveCoords(row.pin, row.prop_address_full);
     methodCounts[coords.method]++;
-
-    const district = classifyDistrict(coords.lon, coords.lat, districtsGeojson.features);
-    if (district) districtCounts[district] = (districtCounts[district] || 0) + 1;
-
-    const zone = classifyZone(coords.lon, coords.lat, zoningGeojson.features);
 
     // Only include properties with coordinates
     if (coords.lat && coords.lon) {
@@ -299,8 +262,11 @@ async function main() {
         lon: coords.lon,
         class: row.class,
         description: classDescs[row.class] || '',
-        district: district || null,
-        zone: zone || null,
+        units: characteristics.units,
+        yearBuilt: characteristics.years.length > 0
+          ? Math.min(...characteristics.years)
+          : null,
+        buildingSqft: characteristics.buildingSqft || null,
         url: `https://www.cookcountyassessor.com/pin/${row.pin}`,
       });
     }
@@ -347,7 +313,14 @@ async function main() {
   for (const f of parcelsGeojson.features) {
     const p = propsByPin[f.properties.name];
     if (p) {
-      f.properties = { ...f.properties, pin: p.pin, class: p.class, description: p.description, district: p.district, address: p.address, url: p.url };
+      f.properties = {
+        ...f.properties,
+        pin: p.pin,
+        units: p.units,
+        yearBuilt: p.yearBuilt,
+        address: p.address,
+        url: p.url,
+      };
     }
   }
 
@@ -357,17 +330,11 @@ async function main() {
   const propsPath = path.join(opts.outputDir, 'properties.json');
   fs.writeFileSync(propsPath, JSON.stringify(properties));
 
-  const districtsPath = path.join(opts.outputDir, 'districts.geojson');
-  fs.writeFileSync(districtsPath, JSON.stringify(districtsGeojson));
-
   const boundaryPath = path.join(opts.outputDir, 'boundary.geojson');
   fs.writeFileSync(boundaryPath, JSON.stringify(boundaryGeojson));
 
   const parcelsPath = path.join(opts.outputDir, 'parcels.geojson');
   fs.writeFileSync(parcelsPath, JSON.stringify(parcelsGeojson));
-
-  const zoningPath = path.join(opts.outputDir, 'zoning.geojson');
-  fs.writeFileSync(zoningPath, JSON.stringify(zoningGeojson));
 
   // Summary
   console.log(`\nCoordinate resolution:`);
@@ -377,18 +344,9 @@ async function main() {
   console.log(`  No coordinates:           ${methodCounts.none}`);
   console.log(`  Total:                    ${rows.length}`);
 
-  console.log(`\nHistoric districts:`);
-  for (const [name, count] of Object.entries(districtCounts).sort((a, b) => b[1] - a[1])) {
-    console.log(`  ${name}: ${count}`);
-  }
-  const noDistrict = rows.length - Object.values(districtCounts).reduce((a, b) => a + b, 0);
-  console.log(`  (none): ${noDistrict}`);
-
   console.log(`\nWrote ${properties.length} properties to ${path.resolve(propsPath)}`);
-  console.log(`Wrote district boundaries to ${path.resolve(districtsPath)}`);
   console.log(`Wrote village boundary to ${path.resolve(boundaryPath)}`);
   console.log(`Wrote ${parcelsGeojson.features.length} parcel geometries to ${path.resolve(parcelsPath)}`);
-  console.log(`Wrote ${zoningGeojson.features.length} zoning polygons to ${path.resolve(zoningPath)}`);
 }
 
 main().catch(e => {

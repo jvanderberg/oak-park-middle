@@ -1,5 +1,5 @@
 {
-  "name": "oak-park-properties",
+  "name": "oak-park-middle",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -16,8 +16,6 @@
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.8",
     "@tailwindcss/vite": "^4.2.1",
-    "@turf/boolean-point-in-polygon": "^7.3.4",
-    "@turf/helpers": "^7.3.4",
     "@turf/union": "^7.3.4",
     "better-sqlite3": "^12.8.0",
     "class-variance-authority": "^0.7.1",
