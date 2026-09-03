@@ -9,11 +9,11 @@
 }
 
 * { box-sizing: border-box; }
-html, body, #root { width: 100%; height: 100%; margin: 0; }
+html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 button, input { font: inherit; }
 button { color: inherit; }
 
-.app-shell { display: flex; width: 100vw; height: 100dvh; overflow: hidden; }
+.app-shell { position: fixed; inset: 0; display: flex; width: 100%; height: 100dvh; overflow: hidden; }
 .sidebar {
 	width: 360px;
 	flex: 0 0 360px;
@@ -80,6 +80,7 @@ button { color: inherit; }
 .mode-switch button { padding: 7px 11px; border: 0; border-radius: 8px; background: transparent; color: #69716d; font-size: 11px; font-weight: 650; cursor: pointer; }
 .mode-switch button.active { color: #fff; background: #173f35; }
 .mobile-backdrop { display: none; }
+.mobile-filter-dock { display: none; }
 
 .leaflet-control-zoom a { color: #173f35 !important; background: #fbfaf5 !important; }
 .leaflet-control-attribution { color: #616b66; background: #fbfaf5dd !important; }
@@ -94,10 +95,29 @@ button { color: inherit; }
 .property-popup .assessor-link strong { font-size: 11px; }
 .property-popup .pin-link { display: block; margin-top: 7px; color: #5f6965; font-family: ui-monospace, monospace; font-size: 9px; text-align: center; text-decoration: underline; }
 
-@media (max-width: 767px) {
-	.sidebar { position: fixed; inset: 0 auto 0 0; width: min(88vw, 360px); padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom)); flex-basis: auto; box-shadow: 8px 0 30px #122d2644; }
-	.sidebar-closed { width: min(88vw, 360px); padding-inline: 20px; transform: translateX(-105%); }
+@media (max-width: 767px), (max-height: 500px) {
+	.app-shell { height: 100svh; }
+	.sidebar { position: fixed; inset: 0 auto 0 0; width: min(85vw, 320px); gap: 16px; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); flex-basis: auto; box-shadow: 8px 0 30px #122d2644; }
+	.sidebar-closed { width: min(85vw, 320px); padding-inline: 16px; transform: translateX(-105%); }
+	.brand-mark { width: 34px; height: 34px; border-radius: 9px; }
+	.brand-copy h1 { font-size: 17px; }
+	.brand-copy p { font-size: 11.5px; }
+	.filter-section { gap: 9px; }
+	.unit-grid { gap: 5px; }
+	.unit-button { height: 54px; border-radius: 9px; }
+	.unit-button strong { font-size: 15px; }
+	.results-card { padding: 12px 14px; }
+	.results-card strong { font-size: 20px; }
 	.mobile-backdrop { display: block; position: fixed; inset: 0; z-index: 1100; border: 0; background: #102a2466; }
+	.map-wrap, .map { position: absolute; inset: 0; width: 100%; height: 100%; }
 	.map-toolbar { left: 54px; }
 	.share-control span { display: none; }
+	.mode-switch { right: 10px; }
+	.mobile-filter-dock { position: absolute; z-index: 1000; right: 12px; bottom: max(20px, calc(env(safe-area-inset-bottom, 0px) + 12px)); left: 12px; display: flex; align-items: center; justify-content: space-between; min-height: 56px; padding: 7px 8px 7px 15px; border: 1px solid #cfcdc2; border-radius: 16px; background: #fbfaf5f5; box-shadow: 0 8px 28px #17332d33; backdrop-filter: blur(10px); }
+	.mobile-result-count { display: flex; flex-direction: column; line-height: 1.05; }
+	.mobile-result-count strong { font-size: 17px; }
+	.mobile-result-count span { margin-top: 3px; color: #747a76; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
+	.mobile-filter-dock > button { position: relative; height: 42px; display: flex; align-items: center; gap: 8px; padding: 0 17px; border: 0; border-radius: 11px; color: #fff; background: #173f35; font-size: 13px; font-weight: 700; }
+	.active-filter-dot { position: absolute; top: 6px; right: 7px; width: 7px; height: 7px; border: 2px solid #173f35; border-radius: 50%; background: #e9a33d; }
+	.leaflet-control-attribution { margin-bottom: 82px !important; }
 }

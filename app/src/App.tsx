@@ -6,6 +6,7 @@ import {
 	FilterX,
 	Menu,
 	Share2,
+	SlidersHorizontal,
 	X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -17,6 +18,7 @@ import {
 	HighlightMarker,
 	MapBounds,
 	MapPositionSync,
+	MapViewportSync,
 	PropertyMarkers,
 } from './components/MapLayers';
 import { SearchInput } from './components/SearchInput';
@@ -24,11 +26,14 @@ import { OAK_PARK_CENTER, UNIT_COLORS } from './constants';
 import type { Property } from './types';
 
 const initialParams = new URLSearchParams(window.location.search);
+const MOBILE_QUERY = '(max-width: 767px), (max-height: 500px)';
 
 function useIsMobile() {
-	const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+	const [isMobile, setIsMobile] = useState(
+		() => window.matchMedia(MOBILE_QUERY).matches,
+	);
 	useEffect(() => {
-		const query = window.matchMedia('(max-width: 767px)');
+		const query = window.matchMedia(MOBILE_QUERY);
 		const onChange = (event: MediaQueryListEvent) => setIsMobile(event.matches);
 		query.addEventListener('change', onChange);
 		return () => query.removeEventListener('change', onChange);
@@ -45,7 +50,7 @@ function parseOptionalNumber(value: string | null): number | null {
 export default function App() {
 	const isMobile = useIsMobile();
 	const [sidebarOpen, setSidebarOpen] = useState(
-		() => window.innerWidth >= 768,
+		() => !window.matchMedia(MOBILE_QUERY).matches,
 	);
 	const [properties, setProperties] = useState<Property[]>([]);
 	const [boundary, setBoundary] = useState<FeatureCollection | null>(null);
@@ -327,7 +332,7 @@ export default function App() {
 
 			<main className="map-wrap">
 				<div className="map-toolbar">
-					{!sidebarOpen && (
+					{!sidebarOpen && !isMobile && (
 						<button
 							type="button"
 							className="map-control"
@@ -363,6 +368,19 @@ export default function App() {
 						Dots
 					</button>
 				</fieldset>
+				{isMobile && !sidebarOpen && (
+					<div className="mobile-filter-dock">
+						<div className="mobile-result-count">
+							<strong>{displayed.length.toLocaleString()}</strong>
+							<span>properties</span>
+						</div>
+						<button type="button" onClick={() => setSidebarOpen(true)}>
+							<SlidersHorizontal size={18} />
+							Filters
+							{hasFilters && <span className="active-filter-dot" />}
+						</button>
+					</div>
+				)}
 				<MapContainer
 					center={initialCenter}
 					zoom={mapPosition?.zoom ?? 14}
@@ -376,6 +394,7 @@ export default function App() {
 					/>
 					<MapBounds properties={properties} skip={mapPosition !== null} />
 					<MapPositionSync onMove={handleMapMove} />
+					<MapViewportSync />
 					{boundary && <BoundaryLayer boundary={boundary} />}
 					<PropertyMarkers
 						properties={displayed}

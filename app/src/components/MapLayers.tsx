@@ -46,6 +46,32 @@ export function MapPositionSync({
 	return null;
 }
 
+/** Keep Leaflet aligned with Safari's changing visual viewport and drawer state. */
+export function MapViewportSync() {
+	const map = useMap();
+	useEffect(() => {
+		let frame = 0;
+		const refresh = () => {
+			window.cancelAnimationFrame(frame);
+			frame = window.requestAnimationFrame(() =>
+				map.invalidateSize({ pan: false }),
+			);
+		};
+		const observer = new ResizeObserver(refresh);
+		observer.observe(map.getContainer());
+		window.addEventListener('resize', refresh);
+		window.visualViewport?.addEventListener('resize', refresh);
+		refresh();
+		return () => {
+			window.cancelAnimationFrame(frame);
+			observer.disconnect();
+			window.removeEventListener('resize', refresh);
+			window.visualViewport?.removeEventListener('resize', refresh);
+		};
+	}, [map]);
+	return null;
+}
+
 export function BoundaryLayer({ boundary }: { boundary: FeatureCollection }) {
 	const map = useMap();
 	useEffect(() => {
